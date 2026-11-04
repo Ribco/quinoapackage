@@ -71,6 +71,30 @@ toolbarButton.Click:Connect(function()
     widget.Enabled = not widget.Enabled
 end)
 
+-- Command Bar bridge
+-- Allows the Command Bar to request that this plugin opens its installer.
+
+local Selection = game:GetService("Selection")
+
+Selection.SelectionChanged:Connect(function()
+    for _, instance in ipairs(Selection:Get()) do
+        if instance:GetAttribute("QuinoaUICommand") == "OPEN_INSTALLER" then
+            widget.Enabled = true
+
+            -- Clear the temporary selection and marker.
+            Selection:Set({})
+
+            task.defer(function()
+                if instance and instance.Parent then
+                    instance:Destroy()
+                end
+            end)
+
+            break
+        end
+    end
+end)
+
 -- UI helpers
 
 local function create(class, props, parent)
