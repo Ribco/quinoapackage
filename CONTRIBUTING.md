@@ -72,5 +72,3 @@ By contributing to QuinoaUI, you agree that your contributions will be distribut
 ---
 
 Thank you for helping make QuinoaUI better!
-
-**Made with 💚 by Ribco**
