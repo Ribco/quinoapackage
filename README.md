@@ -1,20 +1,29 @@
-# 🌿 QuinoaUI
+# QuinoaUI
 
-**A modern, customizable UI library for Roblox.**
+A modern and customizable UI library for Roblox.
 
-QuinoaUI is a lightweight Luau UI library designed to help Roblox developers create beautiful and interactive interfaces with clean, simple code.
+![Version](https://img.shields.io/badge/version-1.1.0-brightgreen)
+![License](https://img.shields.io/badge/license-MIT-blue)
+![Language](https://img.shields.io/badge/language-Luau-blueviolet)
+![Platform](https://img.shields.io/badge/platform-Roblox-red)
+[![GitHub Stars](https://img.shields.io/github/stars/Ribco/quinoapackage?style=social)](https://github.com/Ribco/quinoapackage)
 
-- 🎨 Customizable Dark and Light themes
-- 🪟 Modern window interface
-- 📑 Tabs and sections
-- 🔘 Buttons, toggles, sliders, and dropdowns
-- 🔔 Notification system
-- 📱 Optional TopbarPlus integration
-- ⚡ Easy installation through Roblox Studio Command Bar
+QuinoaUI provides Roblox developers with a simple way to create customizable interfaces using Luau.
 
----
+## Features
 
-## 📦 Installation
+- Dark and Light themes
+- Customizable windows
+- Tabs and sections
+- Buttons and toggles
+- Sliders and dropdowns
+- Text inputs
+- Multi-selection dropdowns
+- Notification system
+- Optional TopbarPlus integration
+- Visual Studio installer
+
+## Installation
 
 ### Requirements
 
@@ -22,17 +31,17 @@ QuinoaUI is a lightweight Luau UI library designed to help Roblox developers cre
 - HTTP Requests enabled
 - Internet connection
 
-### Step 1 — Enable HTTP Requests
+### 1. Enable HTTP Requests
 
 1. Open Roblox Studio.
-2. Go to **File → Experience Settings**.
-3. Open **Security**.
+2. Navigate to **File → Experience Settings**.
+3. Open the **Security** tab.
 4. Enable **Allow HTTP Requests**.
 5. Save your settings.
 
-### Step 2 — Install QuinoaUI
+### 2. Open the Command Bar
 
-Open the Roblox Studio Command Bar and paste:
+Open the Command Bar in Roblox Studio and execute:
 
 ```lua
 loadstring(game:GetService("HttpService"):GetAsync(
@@ -40,11 +49,11 @@ loadstring(game:GetService("HttpService"):GetAsync(
 ))()
 ```
 
-The QuinoaUI visual installer will appear. Follow its instructions to configure and install the library.
+The QuinoaUI installer will open. Follow the instructions to configure and install the library.
 
----
+> Only execute the installer from the official QuinoaUI repository.
 
-## 🚀 Getting Started
+## Getting Started
 
 After installation, create a LocalScript inside `StarterPlayerScripts`.
 
@@ -56,7 +65,7 @@ local QuinoaUI = require(
 )
 
 local Window = QuinoaUI:CreateWindow({
-    Title = "My QuinoaUI App",
+    Title = "My Application",
     Theme = "Dark"
 })
 
@@ -78,25 +87,23 @@ Section:CreateButton({
     Callback = function()
         Window:Notify({
             Title = "QuinoaUI",
-            Content = "Your UI is working!",
+            Content = "Your interface is working!",
             Duration = 3
         })
     end
 })
 ```
 
----
+## Themes
 
-## 🎨 Themes
-
-QuinoaUI currently supports two built-in themes:
+QuinoaUI currently supports:
 
 | Theme | Description |
 |---|---|
-| `Dark` | A modern dark appearance |
-| `Light` | A clean light appearance |
+| `Dark` | Dark interface appearance |
+| `Light` | Light interface appearance |
 
-Set your preferred theme when creating a window:
+Example:
 
 ```lua
 local Window = QuinoaUI:CreateWindow({
@@ -105,82 +112,11 @@ local Window = QuinoaUI:CreateWindow({
 })
 ```
 
----
+## TopbarPlus Integration
 
-## 🧩 API Reference
-
-### CreateWindow
-
-Creates a new QuinoaUI window.
-
-```lua
-local Window = QuinoaUI:CreateWindow({
-    Title = "My Window",
-    Theme = "Dark"
-})
-```
-
-### Window Methods
-
-| Method | Description |
-|---|---|
-| `Window:Open()` | Opens the window |
-| `Window:Close()` | Closes the window |
-| `Window:Toggle()` | Toggles visibility |
-| `Window:Minimize()` | Minimizes the window |
-| `Window:SetTitle(title)` | Changes the window title |
-| `Window:SetTheme(theme)` | Changes the theme |
-| `Window:Destroy()` | Removes the window |
-| `Window:Notify(config)` | Displays a notification |
-| `Window:CreateTab(config)` | Creates a tab |
-| `Window:GetTab(name)` | Gets a tab |
-| `Window:GetActiveTab()` | Gets the active tab |
-
-### Tab Methods
-
-| Method | Description |
-|---|---|
-| `Tab:Show()` | Shows the tab |
-| `Tab:Hide()` | Hides the tab |
-| `Tab:Destroy()` | Removes the tab |
-| `Tab:CreateSection(config)` | Creates a section |
-
-### Section Methods
-
-| Method | Description |
-|---|---|
-| `Section:CreateLabel(config)` | Creates a label |
-| `Section:CreateDivider()` | Creates a divider |
-| `Section:CreateButton(config)` | Creates a button |
-| `Section:CreateToggle(config)` | Creates a toggle |
-| `Section:CreateSlider(config)` | Creates a slider |
-| `Section:CreateDropdown(config)` | Creates a dropdown |
-| `Section:CreateInput(config)` | Creates an input |
-| `Section:CreateMultiDropdown(config)` | Creates a multi-selection dropdown |
-
----
-
-## 🔔 Notifications
-
-Display notifications from your window:
-
-```lua
-Window:Notify({
-    Title = "Hello!",
-    Content = "Welcome to QuinoaUI.",
-    Duration = 3
-})
-```
-
----
-
-## 📌 TopbarPlus Integration
-
-QuinoaUI supports optional integration with the official [TopbarPlus](https://github.com/1ForeverHD/TopbarPlus) package.
+QuinoaUI supports optional integration with [TopbarPlus](https://github.com/1ForeverHD/TopbarPlus).
 
 Place the TopbarPlus package inside `ReplicatedStorage` under a folder named `TopbarPlus`.
-
-Then use:
 
 ```lua
 Window:CreateTopbarToggle({
@@ -190,49 +126,41 @@ Window:CreateTopbarToggle({
 })
 ```
 
-This creates a TopbarPlus icon that can toggle your QuinoaUI window.
-
 TopbarPlus is optional.
 
----
+## Documentation
 
-## 📁 Installation Structure
+- [API Reference](API.md)
+- [Contributing Guide](CONTRIBUTING.md)
+- [Changelog](releases/CHANGELOG.md)
 
-After installation, QuinoaUI creates:
+## Repository Structure
 
 ```text
-ReplicatedStorage
-└── QuinoaUI
-    └── QuinoaUI (ModuleScript)
-
-StarterPlayer
-└── StarterPlayerScripts
-    └── QuinoaUIBootstrap (LocalScript)
+quinoapackage/
+├── .github/
+│   └── ISSUE_TEMPLATE/
+│       ├── bug_report.yml
+│       └── feature_request.yml
+├── plugin/
+│   └── QuinoaUIInstaller.lua
+├── releases/
+│   └── CHANGELOG.md
+├── src/
+│   └── QuinoaUI.lua
+├── API.md
+├── CONTRIBUTING.md
+├── LICENSE
+├── README.md
+├── commandbar.lua
+├── installer.lua
+└── manifest.json
 ```
 
----
+## License
 
-## 🛠️ Development
+QuinoaUI is distributed under the MIT License. See [LICENSE](LICENSE) for details.
 
-QuinoaUI is developed by **Ribco** under the Quinoa Hosting project.
+## Support and Issues
 
-- **Repository:** [Ribco/quinoapackage](https://github.com/Ribco/quinoapackage)
-- **Source:** `src/QuinoaUI.lua`
-- **Installer:** `commandbar.lua`
-- **License:** MIT
-
----
-
-## 📜 License
-
-QuinoaUI is licensed under the MIT License.
-
-You are free to use, modify, and distribute the library in accordance with the license terms.
-
----
-
-<p align="center">
-  **Made by SCRATCH. Open Source**
-  <br>
-  *QuinoaUI - Build better Roblox interfaces.*
-</p>
+To report a bug or request a feature, visit the [GitHub Issues](https://github.com/Ribco/quinoapackage/issues) page.
