@@ -323,22 +323,21 @@ function Window:_check()
 end
 
 function Window:Open()
-    self:_check()
-    self.Screen.Enabled = true
-    self.Main.Visible = true
-    return self
+    if not self.Destroyed then
+        Main.Visible = true
+    end
 end
 
 function Window:Close()
-    self:_check()
-    self.Main.Visible = false
-    return self
+    Main.Visible = false
 end
 
 function Window:Toggle()
-    self:_check()
-    self.Main.Visible = not self.Main.Visible
-    return self
+    Main.Visible = not Main.Visible
+end
+
+function Window:TopbarToggle()
+    self:Toggle()
 end
 
 function Window:SetTitle(text)
@@ -382,6 +381,42 @@ function Window:SetTheme(themeName)
 
     applyTheme(self)
     return self
+end
+
+function Window:CreateTopbarToggle(config)
+    config = config or {}
+
+    if self.TopbarButton then
+        self.TopbarButton:Destroy()
+    end
+
+    local button = Create("TextButton", {
+        Name = "QuinoaUITopbarToggle",
+        Size = UDim2.fromOffset(42, 42),
+        Position = UDim2.fromOffset(
+            config.X or 12,
+            config.Y or 48
+        ),
+        BackgroundColor3 = self.Theme.Secondary,
+        Text = config.Text or "Q",
+        TextColor3 = self.Theme.Text,
+        TextSize = 16,
+        Font = Enum.Font.GothamBold,
+        AutoButtonColor = false,
+        Visible = true,
+        ZIndex = 100
+    }, ScreenGui)
+
+    Corner(button, 12)
+    Stroke(button, self.Theme.Border)
+
+    button.MouseButton1Click:Connect(function()
+        self:TopbarToggle()
+    end)
+
+    self.TopbarButton = button
+
+    return button
 end
 
 function Window:CreateTab(config)
