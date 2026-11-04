@@ -12,6 +12,42 @@ local QuinoaUI = {
     Windows = {},
 }
 
+--=======================================================
+-- QUINOA UI | INITIALIZATION
+--=======================================================
+
+task.defer(function()
+	local RunService = game:GetService("RunService")
+
+	local VERSION = QuinoaUI.Version
+
+	if not RunService:IsStudio() then
+		return
+	end
+
+	print(
+		string.format(
+			"[QuinoaUI] Running version %s | Quinoa Hosting",
+			VERSION
+		)
+	)
+end)
+
+--=======================================================
+-- DEVELOPER INFORMATION
+--=======================================================
+
+task.defer(function()
+	local RunService = game:GetService("RunService")
+
+	if not RunService:IsStudio() then
+		return
+	end
+
+	print("[QuinoaUI] Documentation: https://github.com/Ribco/quinoapackage")
+	print("[QuinoaUI] Thank you for using QuinoaUI!")
+end)
+
 local Themes = {
     Dark = {
         Background = Color3.fromRGB(19, 21, 29),
