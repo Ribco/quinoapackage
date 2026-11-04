@@ -322,23 +322,114 @@ function Window:_check()
     assert(not self.Destroyed, "[QuinoaUI] This window has been destroyed.")
 end
 
+
 function Window:Open()
-    if not self.Destroyed then
-        Main.Visible = true
+    self:_check()
+
+    if self.TopbarIcon and not self.TopbarIcon.isSelected then
+        self.TopbarIcon:select()
+    else
+        self.Main.Visible = true
     end
+
+    return self
 end
 
 function Window:Close()
-    Main.Visible = false
+    self:_check()
+
+    if self.TopbarIcon and self.TopbarIcon.isSelected then
+        self.TopbarIcon:deselect()
+    else
+        self.Main.Visible = false
+    end
+
+    return self
 end
 
 function Window:Toggle()
-    Main.Visible = not Main.Visible
+    self:_check()
+
+    if self.Main.Visible then
+        self:Close()
+    else
+        self:Open()
+    end
+
+    return self
 end
 
 function Window:TopbarToggle()
-    self:Toggle()
+    return self:Toggle()
 end
+
+function Window:CreateTopbarToggle(config)
+    self:_check()
+    config = config or {}
+
+    if self.TopbarIcon then
+        self.TopbarIcon:destroy()
+        self.TopbarIcon = nil
+    end
+
+    local ReplicatedStorage = game:GetService("ReplicatedStorage")
+    local packageName = config.PackageName or "TopbarPlus"
+    local package = ReplicatedStorage:FindFirstChild(packageName)
+
+    assert(
+        package,
+        "[QuinoaUI] TopbarPlus was not found in ReplicatedStorage. Install TopbarPlus first."
+    )
+
+    local iconModule = package:FindFirstChild("Icon", true)
+
+    assert(
+        iconModule and iconModule:IsA("ModuleScript"),
+        "[QuinoaUI] Could not find the TopbarPlus Icon ModuleScript."
+    )
+
+    local success, Icon = pcall(require, iconModule)
+
+    assert(
+        success and type(Icon) == "table" and type(Icon.new) == "function",
+        "[QuinoaUI] Failed to load TopbarPlus: " .. tostring(Icon)
+    )
+
+    local icon = Icon.new()
+    icon:setName(config.Name or "QuinoaUI")
+    icon:setLabel(config.Label or "Quinoa UI")
+    icon:setOrder(config.Order or 1)
+
+    if config.Image then
+        icon:setImage(config.Image)
+    end
+
+    if config.Caption then
+        icon:setCaption(config.Caption)
+    end
+
+    table.insert(self._connections, icon.selected:Connect(function()
+        if not self.Destroyed then
+            self.Main.Visible = true
+        end
+    end))
+
+    table.insert(self._connections, icon.deselected:Connect(function()
+        if not self.Destroyed then
+            self.Main.Visible = false
+        end
+    end))
+
+    self.TopbarIcon = icon
+
+    -- Keep the icon state synchronized with the window.
+    if self.Main.Visible then
+        icon:select()
+    end
+
+    return icon
+end
+
 
 function Window:SetTitle(text)
     self:_check()
@@ -381,42 +472,6 @@ function Window:SetTheme(themeName)
 
     applyTheme(self)
     return self
-end
-
-function Window:CreateTopbarToggle(config)
-    config = config or {}
-
-    if self.TopbarButton then
-        self.TopbarButton:Destroy()
-    end
-
-    local button = Create("TextButton", {
-        Name = "QuinoaUITopbarToggle",
-        Size = UDim2.fromOffset(42, 42),
-        Position = UDim2.fromOffset(
-            config.X or 12,
-            config.Y or 48
-        ),
-        BackgroundColor3 = self.Theme.Secondary,
-        Text = config.Text or "Q",
-        TextColor3 = self.Theme.Text,
-        TextSize = 16,
-        Font = Enum.Font.GothamBold,
-        AutoButtonColor = false,
-        Visible = true,
-        ZIndex = 100
-    }, ScreenGui)
-
-    Corner(button, 12)
-    Stroke(button, self.Theme.Border)
-
-    button.MouseButton1Click:Connect(function()
-        self:TopbarToggle()
-    end)
-
-    self.TopbarButton = button
-
-    return button
 end
 
 function Window:CreateTab(config)
@@ -574,8 +629,25 @@ function Window:Destroy()
         connection:Disconnect()
     end
 
-    self.Screen:Destroy()
+    table.clear(self._connections)
+
+    if self.TopbarIcon then
+        self.TopbarIcon:destroy()
+        self.TopbarIcon = nil
+    end
+
+    if self.Screen then
+        self.Screen:Destroy()
+    end
+
     table.clear(self.Tabs)
+
+    for index, window in ipairs(QuinoaUI.Windows) do
+        if window == self then
+            table.remove(QuinoaUI.Windows, index)
+            break
+        end
+    end
 end
 
 function Tab:_check()
