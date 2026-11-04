@@ -1,0 +1,36 @@
+name: Feature Request
+description: Suggest a new feature or improvement for QuinoaUI.
+title: "[Feature]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Describe your idea and how it could improve QuinoaUI.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Is your suggestion related to a problem?
+      description: Explain what you are trying to solve.
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: Describe the feature you would like to see.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives
+      description: Have you considered other solutions?
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional information
+      description: Include examples, screenshots, or references.
