@@ -1,3 +1,4 @@
+
 --=======================================================
 -- QUINOA UI | VERSION 1.1.0
 --=======================================================
@@ -37,6 +38,10 @@ local Themes = {
     },
 }
 
+--=======================================================
+-- HELPERS
+--=======================================================
+
 local function create(className, properties, parent)
     local object = Instance.new(className)
 
@@ -50,7 +55,7 @@ end
 
 local function corner(parent, radius)
     return create("UICorner", {
-        CornerRadius = UDim.new(0, radius or 8)
+        CornerRadius = UDim.new(0, radius or 8),
     }, parent)
 end
 
@@ -99,13 +104,13 @@ local function button(parent, text, theme, height)
 
     object.MouseEnter:Connect(function()
         TweenService:Create(object, TweenInfo.new(0.15), {
-            BackgroundColor3 = theme.Accent
+            BackgroundColor3 = theme.Accent,
         }):Play()
     end)
 
     object.MouseLeave:Connect(function()
         TweenService:Create(object, TweenInfo.new(0.15), {
-            BackgroundColor3 = theme.Surface2
+            BackgroundColor3 = theme.Surface2,
         }):Play()
     end)
 
@@ -115,12 +120,91 @@ end
 local function animate(object, properties, duration)
     local tween = TweenService:Create(
         object,
-        TweenInfo.new(duration or 0.2, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
+        TweenInfo.new(
+            duration or 0.2,
+            Enum.EasingStyle.Quart,
+            Enum.EasingDirection.Out
+        ),
         properties
     )
+
     tween:Play()
     return tween
 end
+
+--=======================================================
+-- LOADING SYSTEM
+--=======================================================
+
+local function registerInitializer(section, config, control)
+    if type(config.Initialize) ~= "function" then
+        return
+    end
+
+    local tab = section.Tab
+
+    table.insert(tab._initializers, {
+        Callback = config.Initialize,
+        Control = control,
+        Completed = false,
+    })
+end
+
+local function runInitializer(tab, initializer, timeout)
+    local finished = false
+    local succeeded = false
+    local failure
+
+    local token = {
+        Cancelled = false,
+    }
+
+    task.spawn(function()
+        local ok, result, detail = pcall(
+            initializer.Callback,
+            initializer.Control,
+            tab,
+            token
+        )
+
+        if token.Cancelled then
+            return
+        end
+
+        if not ok then
+            failure = tostring(result)
+        elseif result == false then
+            failure = tostring(detail or "Initialization failed.")
+        else
+            succeeded = true
+        end
+
+        finished = true
+    end)
+
+    local started = os.clock()
+
+    while not finished and os.clock() - started < timeout do
+        task.wait(0.05)
+    end
+
+    if not finished then
+        token.Cancelled = true
+
+        return false,
+            "Initialization timed out. Check the operation and try again."
+    end
+
+    if not succeeded then
+        return false, failure or "Unknown initialization error."
+    end
+
+    return true
+end
+
+--=======================================================
+-- CLASSES
+--=======================================================
 
 local Window = {}
 Window.__index = Window
@@ -130,6 +214,10 @@ Tab.__index = Tab
 
 local Section = {}
 Section.__index = Section
+
+--=======================================================
+-- THEME
+--=======================================================
 
 local function applyTheme(window)
     local t = window.Theme
@@ -147,22 +235,37 @@ local function applyTheme(window)
             tab == window.ActiveTab and t.Accent or t.Surface2
 
         tab.Page.BackgroundColor3 = t.Background
+        tab.LoadingOverlay.BackgroundColor3 = t.Background
+        tab.LoadingSpinner.TextColor3 = t.Accent
+        tab.LoadingTitle.TextColor3 = t.Text
+        tab.LoadingStatus.TextColor3 = t.Muted
+        tab.LoadingProgress.BackgroundColor3 = t.Accent
     end
 end
+
+--=======================================================
+-- WINDOW CREATION
+--=======================================================
 
 function QuinoaUI:CreateWindow(config)
     config = config or {}
 
     local player = Players.LocalPlayer
+
     assert(player, "QuinoaUI must be used from a LocalScript.")
 
     local playerGui = player:WaitForChild("PlayerGui")
 
     local themeName = config.Theme or "Dark"
-    assert(Themes[themeName] or type(themeName) == "table",
-        "Invalid QuinoaUI theme.")
 
-    local theme = type(themeName) == "table" and themeName or Themes[themeName]
+    assert(
+        Themes[themeName] or type(themeName) == "table",
+        "Invalid QuinoaUI theme."
+    )
+
+    local theme = type(themeName) == "table"
+        and themeName
+        or Themes[themeName]
 
     local screen = create("ScreenGui", {
         Name = "QuinoaUI_" .. tostring(#self.Windows + 1),
@@ -191,7 +294,14 @@ function QuinoaUI:CreateWindow(config)
         BorderSizePixel = 0,
     }, main)
 
-    local title = label(header, config.Title or "Quinoa UI", 15, theme.Text, true)
+    local title = label(
+        header,
+        config.Title or "Quinoa UI",
+        15,
+        theme.Text,
+        true
+    )
+
     title.Position = UDim2.fromOffset(17, 0)
     title.Size = UDim2.new(1, -110, 1, 0)
 
@@ -235,7 +345,7 @@ function QuinoaUI:CreateWindow(config)
         CanvasSize = UDim2.new(),
     }, sidebar)
 
-    local tabLayout = create("UIListLayout", {
+    create("UIListLayout", {
         Padding = UDim.new(0, 6),
         SortOrder = Enum.SortOrder.LayoutOrder,
     }, tabList)
@@ -257,6 +367,10 @@ function QuinoaUI:CreateWindow(config)
         TabList = tabList,
         Pages = pages,
         Title = title,
+
+        LoadingConfig = type(config.Loading) == "table"
+            and config.Loading or {},
+
         Theme = theme,
         Tabs = {},
         ActiveTab = nil,
@@ -282,28 +396,32 @@ function QuinoaUI:CreateWindow(config)
         end
     end)
 
-    UserInputService.InputChanged:Connect(function(input)
-        if dragging and (
-            input.UserInputType == Enum.UserInputType.MouseMovement
-            or input.UserInputType == Enum.UserInputType.Touch
-        ) then
-            local delta = input.Position - dragStart
+    table.insert(window._connections,
+        UserInputService.InputChanged:Connect(function(input)
+            if dragging and (
+                input.UserInputType == Enum.UserInputType.MouseMovement
+                or input.UserInputType == Enum.UserInputType.Touch
+            ) then
+                local delta = input.Position - dragStart
 
-            main.Position = UDim2.new(
-                startPosition.X.Scale,
-                startPosition.X.Offset + delta.X,
-                startPosition.Y.Scale,
-                startPosition.Y.Offset + delta.Y
-            )
-        end
-    end)
+                main.Position = UDim2.new(
+                    startPosition.X.Scale,
+                    startPosition.X.Offset + delta.X,
+                    startPosition.Y.Scale,
+                    startPosition.Y.Offset + delta.Y
+                )
+            end
+        end)
+    )
 
-    table.insert(window._connections, UserInputService.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1
-            or input.UserInputType == Enum.UserInputType.Touch then
-            dragging = false
-        end
-    end))
+    table.insert(window._connections,
+        UserInputService.InputEnded:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1
+                or input.UserInputType == Enum.UserInputType.Touch then
+                dragging = false
+            end
+        end)
+    )
 
     close.Activated:Connect(function()
         window:Close()
@@ -318,10 +436,14 @@ function QuinoaUI:CreateWindow(config)
     return window
 end
 
-function Window:_check()
-    assert(not self.Destroyed, "[QuinoaUI] This window has been destroyed.")
-end
+--=======================================================
+-- WINDOW METHODS
+--=======================================================
 
+function Window:_check()
+    assert(not self.Destroyed,
+        "[QuinoaUI] This window has been destroyed.")
+end
 
 function Window:Open()
     self:_check()
@@ -391,11 +513,13 @@ function Window:CreateTopbarToggle(config)
     local success, Icon = pcall(require, iconModule)
 
     assert(
-        success and type(Icon) == "table" and type(Icon.new) == "function",
+        success and type(Icon) == "table"
+            and type(Icon.new) == "function",
         "[QuinoaUI] Failed to load TopbarPlus: " .. tostring(Icon)
     )
 
     local icon = Icon.new()
+
     icon:setName(config.Name or "QuinoaUI")
     icon:setLabel(config.Label or "Quinoa UI")
     icon:setOrder(config.Order or 1)
@@ -408,21 +532,24 @@ function Window:CreateTopbarToggle(config)
         icon:setCaption(config.Caption)
     end
 
-    table.insert(self._connections, icon.selected:Connect(function()
-        if not self.Destroyed then
-            self.Main.Visible = true
-        end
-    end))
+    table.insert(self._connections,
+        icon.selected:Connect(function()
+            if not self.Destroyed then
+                self.Main.Visible = true
+            end
+        end)
+    )
 
-    table.insert(self._connections, icon.deselected:Connect(function()
-        if not self.Destroyed then
-            self.Main.Visible = false
-        end
-    end))
+    table.insert(self._connections,
+        icon.deselected:Connect(function()
+            if not self.Destroyed then
+                self.Main.Visible = false
+            end
+        end)
+    )
 
     self.TopbarIcon = icon
 
-    -- Keep the icon state synchronized with the window.
     if self.Main.Visible then
         icon:select()
     end
@@ -430,10 +557,11 @@ function Window:CreateTopbarToggle(config)
     return icon
 end
 
-
 function Window:SetTitle(text)
     self:_check()
+
     assert(type(text) == "string", "Title must be a string.")
+
     self.Title.Text = text
     return self
 end
@@ -446,12 +574,14 @@ function Window:Minimize()
         self.Minimized = false
     else
         self._oldSize = self.Main.Size
+
         self.Main.Size = UDim2.new(
             self._oldSize.X.Scale,
             self._oldSize.X.Offset,
             0,
             48
         )
+
         self.Minimized = true
     end
 
@@ -474,10 +604,16 @@ function Window:SetTheme(themeName)
     return self
 end
 
+--=======================================================
+-- TAB CREATION
+--=======================================================
+
 function Window:CreateTab(config)
     self:_check()
 
-    assert(type(config) == "table", "Tab config must be a table.")
+    assert(type(config) == "table",
+        "Tab config must be a table.")
+
     assert(type(config.Name) == "string" and config.Name ~= "",
         "Tab requires a Name.")
 
@@ -516,10 +652,123 @@ function Window:CreateTab(config)
 
     padding(page, 16)
 
-    local layout = create("UIListLayout", {
+    create("UIListLayout", {
         Padding = UDim.new(0, 12),
         SortOrder = Enum.SortOrder.LayoutOrder,
     }, page)
+
+    -- Loading overlay
+    local loadingOverlay = create("Frame", {
+        Name = "LoadingOverlay",
+        Size = UDim2.fromScale(1, 1),
+        Position = UDim2.fromScale(0, 0),
+        BackgroundColor3 = t.Background,
+        BorderSizePixel = 0,
+        Visible = false,
+        Active = true,
+        ZIndex = 50,
+    }, self.Pages)
+
+    local loadingContent = create("Frame", {
+        BackgroundTransparency = 1,
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        Position = UDim2.fromScale(0.5, 0.5),
+        Size = UDim2.new(1, -40, 0, 190),
+        ZIndex = 51,
+    }, loadingOverlay)
+
+    local spinner = label(
+        loadingContent,
+        "◌",
+        36,
+        t.Accent,
+        true
+    )
+
+    spinner.Position = UDim2.fromOffset(0, 0)
+    spinner.TextXAlignment = Enum.TextXAlignment.Center
+    spinner.ZIndex = 52
+
+    local spinnerTween = TweenService:Create(
+        spinner,
+        TweenInfo.new(
+            1,
+            Enum.EasingStyle.Linear,
+            Enum.EasingDirection.InOut,
+            -1
+        ),
+        {Rotation = 360}
+    )
+
+    local loadingTitle = label(
+        loadingContent,
+        "Loading...",
+        15,
+        t.Text,
+        true
+    )
+
+    loadingTitle.Position = UDim2.fromOffset(0, 55)
+    loadingTitle.TextXAlignment = Enum.TextXAlignment.Center
+    loadingTitle.ZIndex = 52
+
+    local loadingStatus = label(
+        loadingContent,
+        "Preparing components...",
+        11,
+        t.Muted,
+        false
+    )
+
+    loadingStatus.Position = UDim2.fromOffset(0, 82)
+    loadingStatus.TextXAlignment = Enum.TextXAlignment.Center
+    loadingStatus.ZIndex = 52
+
+    local progressBackground = create("Frame", {
+        BackgroundColor3 = t.Surface2,
+        BorderSizePixel = 0,
+        Position = UDim2.fromOffset(0, 115),
+        Size = UDim2.new(1, 0, 0, 7),
+        ZIndex = 52,
+    }, loadingContent)
+
+    corner(progressBackground, 8)
+
+    local progressFill = create("Frame", {
+        BackgroundColor3 = t.Accent,
+        BorderSizePixel = 0,
+        Size = UDim2.new(0, 0, 1, 0),
+        ZIndex = 53,
+    }, progressBackground)
+
+    corner(progressFill, 8)
+
+    local errorText = label(
+        loadingContent,
+        "",
+        11,
+        t.Danger,
+        false
+    )
+
+    errorText.Position = UDim2.fromOffset(0, 105)
+    errorText.Size = UDim2.new(1, 0, 0, 38)
+    errorText.TextXAlignment = Enum.TextXAlignment.Center
+    errorText.TextYAlignment = Enum.TextYAlignment.Center
+    errorText.TextWrapped = true
+    errorText.Visible = false
+    errorText.ZIndex = 54
+
+    local retryButton = button(
+        loadingContent,
+        "Retry",
+        t,
+        36
+    )
+
+    retryButton.Position = UDim2.fromOffset(0, 150)
+    retryButton.Visible = false
+    retryButton.ZIndex = 54
 
     local tab = setmetatable({
         Name = config.Name,
@@ -528,9 +777,30 @@ function Window:CreateTab(config)
         Page = page,
         Sections = {},
         Destroyed = false,
+
+        _initializers = {},
+        _initialized = false,
+        _loading = false,
+        _loadAttempt = 0,
+
+        LoadingOverlay = loadingOverlay,
+        LoadingTitle = loadingTitle,
+        LoadingStatus = loadingStatus,
+        LoadingSpinner = spinner,
+        LoadingSpinnerTween = spinnerTween,
+        LoadingProgress = progressFill,
+        LoadingProgressBackground = progressBackground,
+        LoadingRetry = retryButton,
+        LoadingError = errorText,
     }, Tab)
 
     self.Tabs[config.Name] = tab
+
+    retryButton.Activated:Connect(function()
+        if not tab.Destroyed then
+            tab:RetryLoad()
+        end
+    end)
 
     tabButton.Activated:Connect(function()
         tab:Show()
@@ -551,10 +821,129 @@ function Window:GetActiveTab()
     return self.ActiveTab
 end
 
+--=======================================================
+-- TAB LOADING
+--=======================================================
+
+function Tab:_Load()
+    self:_check()
+
+    if self._initialized or self._loading then
+        return
+    end
+
+    self._loading = true
+    self._loadAttempt += 1
+
+    local attempt = self._loadAttempt
+    local timeout = tonumber(self.Window.LoadingConfig.Timeout) or 15
+
+    self.LoadingOverlay.Visible = true
+    self.LoadingTitle.Text = "Loading..."
+    self.LoadingStatus.Text = "Preparing components..."
+    self.LoadingError.Visible = false
+    self.LoadingProgressBackground.Visible = true
+    self.LoadingRetry.Visible = false
+    self.LoadingProgress.Size = UDim2.new(0, 0, 1, 0)
+
+    self.LoadingSpinnerTween:Play()
+
+    local total = #self._initializers
+    local completed = 0
+
+    for _, initializer in ipairs(self._initializers) do
+        if self.Destroyed or self.Window.Destroyed
+            or attempt ~= self._loadAttempt then
+            return
+        end
+
+        if not initializer.Completed then
+            self.LoadingStatus.Text =
+                "Initializing component " .. tostring(completed + 1)
+                .. " of " .. tostring(total) .. "..."
+
+            local success, errorMessage = runInitializer(
+                self,
+                initializer,
+                timeout
+            )
+
+            if self.Destroyed or self.Window.Destroyed
+                or attempt ~= self._loadAttempt then
+                return
+            end
+
+            if not success then
+                self._loading = false
+
+                self.LoadingSpinnerTween:Cancel()
+                self.LoadingTitle.Text = "Something went wrong"
+                self.LoadingStatus.Text = "A component could not finish loading."
+                self.LoadingError.Text = errorMessage
+                self.LoadingError.Visible = true
+                self.LoadingProgressBackground.Visible = false
+                self.LoadingRetry.Visible = true
+
+                return
+            end
+
+            initializer.Completed = true
+        end
+
+        completed += 1
+
+        local progress = total > 0 and completed / total or 1
+
+        animate(self.LoadingProgress, {
+            Size = UDim2.new(progress, 0, 1, 0),
+        }, 0.15)
+    end
+
+    self._initialized = true
+    self._loading = false
+
+    self.LoadingSpinnerTween:Cancel()
+    self.LoadingTitle.Text = "Ready!"
+    self.LoadingStatus.Text = "All components are ready."
+
+    task.wait(0.2)
+
+    if self.Destroyed or self.Window.Destroyed
+        or attempt ~= self._loadAttempt then
+        return
+    end
+
+    self.LoadingOverlay.Visible = false
+end
+
+function Tab:RetryLoad()
+    self:_check()
+
+    if self._loading or self._initialized then
+        return self
+    end
+
+    self.LoadingError.Visible = false
+    self.LoadingRetry.Visible = false
+
+    self:_Load()
+
+    return self
+end
+
+function Tab:IsLoaded()
+    return self._initialized
+end
+
+--=======================================================
+-- NOTIFICATIONS
+--=======================================================
+
 function Window:Notify(config)
     self:_check()
 
     config = config or {}
+
     local t = self.Theme
 
     local toast = create("Frame", {
@@ -576,6 +965,7 @@ function Window:Notify(config)
         t.Text,
         true
     )
+
     heading.Position = UDim2.fromOffset(12, 7)
     heading.Size = UDim2.new(1, -24, 0, 23)
     heading.ZIndex = 21
@@ -587,6 +977,7 @@ function Window:Notify(config)
         t.Muted,
         false
     )
+
     description.Position = UDim2.fromOffset(12, 32)
     description.Size = UDim2.new(1, -24, 0, 30)
     description.TextWrapped = true
@@ -617,6 +1008,10 @@ function Window:Notify(config)
 
     return toast
 end
+
+--=======================================================
+-- WINDOW DESTROY
+--=======================================================
 
 function Window:Destroy()
     if self.Destroyed then
@@ -650,8 +1045,14 @@ function Window:Destroy()
     end
 end
 
+--=======================================================
+-- TAB METHODS
+--=======================================================
+
 function Tab:_check()
-    assert(not self.Destroyed, "[QuinoaUI] This tab has been destroyed.")
+    assert(not self.Destroyed,
+        "[QuinoaUI] This tab has been destroyed.")
+
     self.Window:_check()
 end
 
@@ -660,19 +1061,36 @@ function Tab:Show()
 
     for _, other in pairs(self.Window.Tabs) do
         other.Page.Visible = other == self
+
+        other.LoadingOverlay.Visible =
+            other == self and other._loading
+
         other.Button.BackgroundColor3 =
             other == self and self.Window.Theme.Accent
             or self.Window.Theme.Surface2
     end
 
     self.Window.ActiveTab = self
+
+    if not self._initialized and not self._loading then
+        task.defer(function()
+            if not self.Destroyed
+                and not self.Window.Destroyed
+                and self.Window.ActiveTab == self then
+                self:_Load()
+            end
+        end)
+    end
+
     return self
 end
 
 function Tab:Hide()
     self:_check()
+
     self.Page.Visible = false
     self.Button.Visible = false
+    self.LoadingOverlay.Visible = false
 
     if self.Window.ActiveTab == self then
         self.Window.ActiveTab = nil
@@ -690,6 +1108,7 @@ end
 
 function Tab:CreateSection(config)
     self:_check()
+
     config = config or {}
 
     local t = self.Window.Theme
@@ -706,12 +1125,19 @@ function Tab:CreateSection(config)
     stroke(frame, t.Border)
     padding(frame, 12)
 
-    local sectionLayout = create("UIListLayout", {
+    create("UIListLayout", {
         Padding = UDim.new(0, 9),
         SortOrder = Enum.SortOrder.LayoutOrder,
     }, frame)
 
-    local heading = label(frame, config.Name or "Section", 13, t.Text, true)
+    local heading = label(
+        frame,
+        config.Name or "Section",
+        13,
+        t.Text,
+        true
+    )
+
     heading.LayoutOrder = 0
 
     local section = setmetatable({
@@ -722,6 +1148,9 @@ function Tab:CreateSection(config)
     }, Section)
 
     table.insert(self.Sections, section)
+
+    registerInitializer(section, config, section)
+
     return section
 end
 
@@ -731,11 +1160,15 @@ function Tab:Destroy()
     local window = self.Window
     local wasActive = window.ActiveTab == self
 
+    self._loadAttempt += 1
+    self.LoadingSpinnerTween:Cancel()
+
     self.Destroyed = true
     window.Tabs[self.Name] = nil
 
     self.Button:Destroy()
     self.Page:Destroy()
+    self.LoadingOverlay:Destroy()
 
     if wasActive then
         window.ActiveTab = nil
@@ -749,19 +1182,28 @@ function Tab:Destroy()
     end
 end
 
+--=======================================================
+-- SECTION HELPERS
+--=======================================================
+
 local function addControl(section, height)
-    local frame = create("Frame", {
+    return create("Frame", {
         BackgroundTransparency = 1,
         Size = UDim2.new(1, 0, 0, height),
     }, section.Frame)
-
-    return frame
 end
 
+--=======================================================
+-- LABEL
+--=======================================================
+
 function Section:CreateLabel(config)
-    config = type(config) == "string" and {Name = config} or config or {}
+    config = type(config) == "string"
+        and {Name = config}
+        or config or {}
 
     local t = self.Window.Theme
+
     local object = label(
         self.Frame,
         config.Name or config.Text or "Label",
@@ -773,8 +1215,14 @@ function Section:CreateLabel(config)
     object.Size = UDim2.new(1, 0, 0, config.Height or 23)
     object.TextWrapped = true
 
+    registerInitializer(self, config, object)
+
     return object
 end
+
+--=======================================================
+-- DIVIDER
+--=======================================================
 
 function Section:CreateDivider()
     local t = self.Window.Theme
@@ -786,10 +1234,15 @@ function Section:CreateDivider()
     }, self.Frame)
 end
 
+--=======================================================
+-- BUTTON
+--=======================================================
+
 function Section:CreateButton(config)
     config = config or {}
 
     local t = self.Window.Theme
+
     local object = button(
         self.Frame,
         config.Name or "Button",
@@ -803,8 +1256,14 @@ function Section:CreateButton(config)
         end
     end)
 
+    registerInitializer(self, config, object)
+
     return object
 end
+
+--=======================================================
+-- TOGGLE
+--=======================================================
 
 function Section:CreateToggle(config)
     config = config or {}
@@ -814,7 +1273,14 @@ function Section:CreateToggle(config)
 
     local holder = addControl(self, 36)
 
-    local name = label(holder, config.Name or "Toggle", 12, t.Text, false)
+    local name = label(
+        holder,
+        config.Name or "Toggle",
+        12,
+        t.Text,
+        false
+    )
+
     name.Size = UDim2.new(1, -65, 1, 0)
 
     local toggle = create("TextButton", {
@@ -857,13 +1323,22 @@ function Section:CreateToggle(config)
         set(not state)
     end)
 
-    return {
+    local control = {
         Set = set,
+
         Get = function()
             return state
         end,
     }
+
+    registerInitializer(self, config, control)
+
+    return control
 end
+
+--=======================================================
+-- SLIDER
+--=======================================================
 
 function Section:CreateSlider(config)
     config = config or {}
@@ -871,15 +1346,29 @@ function Section:CreateSlider(config)
     local t = self.Window.Theme
     local min = config.Min or 0
     local max = config.Max or 100
-    assert(max > min, "Slider Max must be greater than Min.")
+
+    assert(max > min,
+        "Slider Max must be greater than Min.")
 
     local value = math.clamp(config.Default or min, min, max)
     local holder = addControl(self, 55)
 
-    local title = label(holder, config.Name or "Slider", 12, t.Text)
+    local title = label(
+        holder,
+        config.Name or "Slider",
+        12,
+        t.Text
+    )
+
     title.Size = UDim2.new(0.75, 0, 0, 22)
 
-    local valueLabel = label(holder, tostring(value), 12, t.Muted)
+    local valueLabel = label(
+        holder,
+        tostring(value),
+        12,
+        t.Muted
+    )
+
     valueLabel.TextXAlignment = Enum.TextXAlignment.Right
     valueLabel.Position = UDim2.new(0.75, 0, 0, 0)
     valueLabel.Size = UDim2.new(0.25, 0, 0, 22)
@@ -902,7 +1391,12 @@ function Section:CreateSlider(config)
     local knob = create("Frame", {
         BackgroundColor3 = Color3.new(1, 1, 1),
         AnchorPoint = Vector2.new(0.5, 0.5),
-        Position = UDim2.new((value - min) / (max - min), 0, 0.5, 0),
+        Position = UDim2.new(
+            (value - min) / (max - min),
+            0,
+            0.5,
+            0
+        ),
         Size = UDim2.fromOffset(15, 15),
     }, track)
 
@@ -917,7 +1411,10 @@ function Section:CreateSlider(config)
 
         fill.Size = UDim2.new(alpha, 0, 1, 0)
         knob.Position = UDim2.new(alpha, 0, 0.5, 0)
-        valueLabel.Text = tostring(math.floor(value * 100 + 0.5) / 100)
+
+        valueLabel.Text = tostring(
+            math.floor(value * 100 + 0.5) / 100
+        )
 
         if config.Callback then
             task.spawn(config.Callback, value)
@@ -943,6 +1440,8 @@ function Section:CreateSlider(config)
         end
     end)
 
+    table.insert(self.Tab._connections or {}, nil)
+
     UserInputService.InputChanged:Connect(function(input)
         if dragging and (
             input.UserInputType == Enum.UserInputType.MouseMovement
@@ -959,13 +1458,22 @@ function Section:CreateSlider(config)
         end
     end)
 
-    return {
+    local control = {
         Set = set,
+
         Get = function()
             return value
         end,
     }
+
+    registerInitializer(self, config, control)
+
+    return control
 end
+
+--=======================================================
+-- DROPDOWN
+--=======================================================
 
 function Section:CreateDropdown(config)
     config = config or {}
@@ -1011,7 +1519,12 @@ function Section:CreateDropdown(config)
             BackgroundColor3 = t.Surface,
             BorderSizePixel = 0,
             Position = UDim2.new(0, 0, 1, 5),
-            Size = UDim2.new(1, 0, 0, math.min(#options * 30, 150)),
+            Size = UDim2.new(
+                1,
+                0,
+                0,
+                math.min(#options * 30, 150)
+            ),
             ZIndex = 5,
         }, dropdownButton)
 
@@ -1028,7 +1541,7 @@ function Section:CreateDropdown(config)
             ZIndex = 6,
         }, optionFrame)
 
-        local layout = create("UIListLayout", {
+        create("UIListLayout", {
             SortOrder = Enum.SortOrder.LayoutOrder,
         }, scroll)
 
@@ -1046,6 +1559,7 @@ function Section:CreateDropdown(config)
             optionButton.Activated:Connect(function()
                 selected = option
                 dropdownButton.Text = tostring(option)
+
                 closeOptions()
 
                 if config.Callback then
@@ -1055,7 +1569,7 @@ function Section:CreateDropdown(config)
         end
     end)
 
-    return {
+    local control = {
         Set = function(value)
             selected = value
             dropdownButton.Text = tostring(value)
@@ -1070,7 +1584,15 @@ function Section:CreateDropdown(config)
             closeOptions()
         end,
     }
+
+    registerInitializer(self, config, control)
+
+    return control
 end
+
+--=======================================================
+-- INPUT
+--=======================================================
 
 function Section:CreateInput(config)
     config = config or {}
@@ -1098,18 +1620,31 @@ function Section:CreateInput(config)
 
     input.FocusLost:Connect(function(enterPressed)
         if config.Callback then
-            task.spawn(config.Callback, input.Text, enterPressed)
+            task.spawn(
+                config.Callback,
+                input.Text,
+                enterPressed
+            )
         end
     end)
 
+    registerInitializer(self, config, input)
+
     return input
 end
+
+--=======================================================
+-- MULTI DROPDOWN
+--=======================================================
 
 function Section:CreateMultiDropdown(config)
     config = config or {}
 
     local selected = {}
     local dropdownConfig = table.clone(config)
+
+    -- Only register the multi-dropdown itself.
+    dropdownConfig.Initialize = nil
 
     dropdownConfig.Callback = function(option)
         selected[option] = not selected[option]
@@ -1127,9 +1662,9 @@ function Section:CreateMultiDropdown(config)
         end
     end
 
-    local control = self:CreateDropdown(dropdownConfig)
+    local dropdownControl = self:CreateDropdown(dropdownConfig)
 
-    return {
+    local control = {
         Get = function()
             local result = {}
 
@@ -1150,14 +1685,26 @@ function Section:CreateMultiDropdown(config)
             end
         end,
 
-        Refresh = control.Refresh,
+        Refresh = dropdownControl.Refresh,
     }
+
+    registerInitializer(self, config, control)
+
+    return control
 end
+
+--=======================================================
+-- SECTION DESTROY
+--=======================================================
 
 function Section:Destroy()
     if self.Frame then
         self.Frame:Destroy()
     end
 end
+
+--=======================================================
+-- RETURN
+--=======================================================
 
 return QuinoaUI
