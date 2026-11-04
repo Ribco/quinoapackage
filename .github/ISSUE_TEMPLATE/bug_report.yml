@@ -1,0 +1,59 @@
+name: Bug Report
+description: Report a problem or unexpected behavior in QuinoaUI.
+title: "[Bug]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please provide enough information to help reproduce the issue.
+
+  - type: input
+    id: version
+    attributes:
+      label: QuinoaUI version
+      description: Which version are you using?
+      placeholder: "1.1.0"
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug description
+      description: Clearly describe the problem.
+      placeholder: What happened?
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Explain how the issue can be reproduced.
+      placeholder: |
+        1. Create a window.
+        2. Create a tab.
+        3. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What did you expect to happen?
+    validations:
+      required: true
+
+  - type: textarea
+    id: output
+    attributes:
+      label: Error messages or Output
+      description: Paste relevant Roblox Studio Output messages.
+      render: text
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional information
+      description: Screenshots, videos, or other relevant details.
